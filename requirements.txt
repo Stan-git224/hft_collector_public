@@ -1,0 +1,13 @@
+# Core Python dependencies for this repository
+tqdm
+matplotlib
+pandas
+pyarrow
+plotly
+streamlit
+
+
+
+# Optional analysis/reporting dependencies used when enabled
+quantstats
+hiplot

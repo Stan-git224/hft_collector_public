@@ -1,0 +1,28 @@
+# ============================================
+# HFT Engine Configuration (config.toml)
+# ============================================
+
+[network]
+base_network_floor_ms = 30 # physical network floor to Binance's Tokyo DC (base network floor)
+latency_threshold_ms = 50 # latency threshold for flagging a book as TOXIC FLOW (stale data)
+pkt_loop_threshold = 200
+
+[engine]
+channel_buffer_size = 10000 # MPSC channel buffer for the central pipeline; too small blocks WSS receive (backpressure), too large wastes memory and adds hidden latency
+warmup_secs = 5
+
+
+clock_tuning_threshold_vol = 200 # rolling packet count for the adaptive clock (recompute the time offset every N packets)
+report_interval_ms = 1000 # performance-report output interval
+
+[strategy]
+monitor_interval_ms = 100 # strategy signal-check interval (ms)
+signal_depth = 5 # imbalance depth (levels)
+
+
+[tradingpairs]
+exchange = "binance"
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT"]
+
+[strategy_params]
+imb_ratio = 0.6

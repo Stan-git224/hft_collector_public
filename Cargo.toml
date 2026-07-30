@@ -1,0 +1,30 @@
+[[bench]]
+name = "orderbook_bench"
+harness = false
+
+[package]
+name = "orderbook_rust"
+version = "0.1.0"
+edition = "2024"
+#path = "src/lib.rs"
+
+[dependencies]
+# async runtime, needs "full" (timers, multi-threading, etc.)
+tokio = { version = "1", features = ["full"]}
+
+# fast JSON serialization / deserialization
+serde = {version="1.0", features = ["derive"]} # struct <-> data mapping
+serde_json = "1.0"
+toml = "0.8"
+arrow = { version = "53.0", features  =["prettyprint"]}
+parquet = {version = "53.0", features = ["arrow"]}
+
+
+# async WebSocket library with TLS (Binance requires encrypted wss://)
+tokio-tungstenite = {version = "0.21", features = ["native-tls"]}
+futures-util = "0.3" # helpers for driving the connection Stream
+reqwest = {version="0.11", features = ["json"]}
+chrono = {version = "0.4.38", features = ["serde"]} # UTC ms-timestamp formatting
+
+[dev-dependencies]
+criterion = {version = "0.8.2", features = ["html_reports"]}
