@@ -25,6 +25,7 @@ async fn fetch_snapshot(symbol: &str) -> Result<BinanceSnapshot, Box<dyn std::er
     let url = format!("https://fapi.binance.com/fapi/v1/depth?symbol={}&limit={limit}", symbol);
     let mut delay = tokio::time::Duration::from_secs(1);
 
+
     for attempt in 1..=max_retries {
         match reqwest::get(&url).await {
             Ok(resp) => {
@@ -219,8 +220,9 @@ async fn main() {
     let storage_tx_clone = storage_tx.clone();
 
     tokio::spawn(async move {
-        let mut msg_count = 0;
-        let mut last_report_time = get_local_millis();
+        // let mut msg_count = 0;
+        // let mut last_report_time = get_local_millis();
+        let mut latency_buffer: Vec<u128> = Vec::with_capacity(10000);
 
         //  --- adaptive clock state ---
         let mut dynamic_clock_offset = 0i64;
@@ -234,12 +236,13 @@ async fn main() {
 
         while let Some(msg) = rx.recv().await {
             let raw_local_recv_time = get_local_millis();
-            msg_count += 1;
+            // msg_count += 1;
             pkt_loop_count += 1;
 
             // take this book's tokio lock directly, no std lock
             if let Some(book_lock) = manager_for_processor.get_book(msg.exchange, &msg.symbol) {
                 if let Ok(update) = serde_json::from_str::<BinanceDepthUpdate>(&msg.raw_json) {
+                    let speed_start = std::time::Instant::now();
                     let raw_latency = raw_local_recv_time - update.transaction_time;
                     if raw_latency < min_raw_latency { min_raw_latency = raw_latency;}
                     if pkt_loop_count >= pkt_loop_threshold {
@@ -266,6 +269,7 @@ async fn main() {
                             .collect();
 
                         b.update_levels(&bids_borrowed, &asks_borrowed);
+                        // let elapsed_time = speed_start.elapsed().as_nanos();
 
                         // push into the storage pipeline: a few tens of ns, never blocks the processor
                         for lv in &update.bids {
@@ -290,25 +294,37 @@ async fn main() {
                                 eprintln!("[Storage Drop] ASKS: storage channel is full; dropped the oldest incremental tick data..");
                             }
                         }
+                        let elapsed_time = speed_start.elapsed().as_nanos();
+                        latency_buffer.push(elapsed_time);
+                        let avg_count = 1000;
+                        if latency_buffer.len() >= avg_count {
+                            let sum: u128 = latency_buffer.iter().sum();
+                            let avg = sum / avg_count as u128;
+                            let max = latency_buffer.iter().max().unwrap_or(&0);
+                            let min = latency_buffer.iter().min().unwrap_or(&0);
+                            println!("[Speed test] {} avg latency over 1000 ticks: {} ns, max: {} ns, min: {} ns", msg.symbol, avg, max, min);
+                            latency_buffer.clear();
+                        }
+
                      }
                 }
             }
         // aggregate throughput report
-            let now = get_local_millis();
-            if now - last_report_time >= 1000 {
-                println!(" --- [HFT Engine Performance Report] --- ");
-                println!(" [Speed test] parallel processing speed: {} msg/s", msg_count);
-                println!(" [Clock dynamic offset] current system bias correction: {} ms", dynamic_clock_offset);
+            // let now = get_local_millis();
+            // if now - last_report_time >= 1000 {
+            //     println!(" --- [HFT Engine Performance Report] --- ");
+            //     println!(" [Speed test] parallel processing speed: {} msg/s", msg_count);
+            //     println!(" [Clock dynamic offset] current system bias correction: {} ms", dynamic_clock_offset);
 
-                for (key, lock) in &manager_for_processor.books {
-                    // inner tokio lock, await
-                    let b = lock.read().await;
-                    println!("    -> pairs: {}.{} | status: {:?} ", key.exchange, key.symbol, b.status);
-                }
-                println!("--------------------------------");
-                msg_count = 0;
-                last_report_time = now;
-            }
+            //     for (key, lock) in &manager_for_processor.books {
+            //         // inner tokio lock, await
+            //         let b = lock.read().await;
+            //         println!("    -> pairs: {}.{} | status: {:?} ", key.exchange, key.symbol, b.status);
+            //     }
+            //     println!("--------------------------------");
+            //     msg_count = 0;
+            //     last_report_time = now;
+            // }
         }
     });
     // ------------------------------------------------
@@ -355,11 +371,12 @@ async fn main() {
                         BookStatus::Synced => {
                             if let Some(mid) = b.get_mid_price() {
                                 let imbalance = b.get_deep_imbalance(depth).unwrap_or(0.0);
-                                println!("[Live] {} |Current mid: {} | {depth} layers imbalance: {:.4}", symbol, mid, imbalance);
+                                // println!("[Live] {} |Current mid: {} | {depth} layers imbalance: {:.4}", symbol, mid, imbalance);
                             }
                         }
                         BookStatus::Stale => {
-                            eprintln!("[TOXIC FLOW] {} | book status: Stale, stopping signal generating.", symbol);
+                            // eprintln!("[TOXIC FLOW] {} | book status: Stale, stopping signal generating.", symbol);
+                            continue;
                         }
                         BookStatus::WaitingForSnapshot => {
                             // cooldown: only re-request a snapshot every ~5s to avoid REST rate limits

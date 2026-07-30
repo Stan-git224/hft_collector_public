@@ -100,7 +100,7 @@ pub fn write_batch_to_parquet(
     writer.write(&batch).unwrap();
     writer.close().unwrap();
 
-    println!("[Storage Log] successfully wrote data block asynchronously: {} -> total {} rows.", file_path, total_len);
+    // println!("[Storage Log] successfully wrote data block asynchronously: {} -> total {} rows.", file_path, total_len);
     });
 }
 
